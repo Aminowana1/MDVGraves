@@ -35,6 +35,7 @@ import org.bukkit.util.io.BukkitObjectInputStream;
 import org.bukkit.util.io.BukkitObjectOutputStream;
 
 import xyz.mdvcraft.mdvgraves.commands.Commands;
+import xyz.mdvcraft.mdvgraves.logoutbody.LogoutBodyManager;
 
 import java.io.*;
 import java.lang.reflect.Method;
@@ -96,6 +97,7 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
     private boolean mmoItemsBridgeWarningLogged;
     private String deathFruitExpectedType = "CONSUMABLE";
     private String deathFruitExpectedId = "FRUTA_DE_LA_MUERTE";
+    private LogoutBodyManager logoutBodyManager;
 
     @Override
     public void onEnable() {
@@ -105,6 +107,8 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
             openDatabase();
             createSchema();
             loadActiveGraves();
+            logoutBodyManager = new LogoutBodyManager(this, connection);
+            logoutBodyManager.enable();
         } catch (Exception ex) {
             getLogger().log(Level.SEVERE, "No se pudo iniciar SQLite. MDVGraves será desactivado.", ex);
             getServer().getPluginManager().disablePlugin(this);
@@ -121,11 +125,13 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
         setupMmoItemsBridge();
         scheduleCleanup();
         scheduleOpenGraveIntegrityGuard();
-        getLogger().info("MDVGraves 1.0.8 activo. Bolsas cargadas: " + graves.size());
+        getLogger().info("MDVGraves 1.1.0 activo. Bolsas cargadas: " + graves.size() + ", cuerpos activos: " + (logoutBodyManager == null ? 0 : logoutBodyManager.getActiveBodyCount()));
     }
 
     @Override
     public void onDisable() {
+        if (logoutBodyManager != null)
+            logoutBodyManager.shutdown();
         if (cleanupTask != null)
             cleanupTask.cancel();
         if (integrityTask != null)
@@ -151,12 +157,36 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
     public void reloadPlugin() {
         reloadConfig();
         setupMmoItemsBridge();
+        if (logoutBodyManager != null)
+            logoutBodyManager.reload();
         scheduleCleanup();
         scheduleOpenGraveIntegrityGuard();
     }
 
     public int getActiveGraveCount() {
         return graves.size();
+    }
+
+    public int getActiveLogoutBodyCount() {
+        return logoutBodyManager == null ? 0 : logoutBodyManager.getActiveBodyCount();
+    }
+
+    public int getPendingLogoutBodySessionCount() {
+        return logoutBodyManager == null ? 0 : logoutBodyManager.getPendingSessionCount();
+    }
+
+    public boolean hasGrave(UUID graveId) {
+        return graveId != null && graves.containsKey(graveId);
+    }
+
+    public boolean isPrivateGraveOwner(Player player) {
+        return player != null
+                && getConfig().getBoolean("utilities.private-graves.enabled", true)
+                && player.hasPermission("mdvgraves.private");
+    }
+
+    public String captureGraveTexture(Player player) {
+        return player == null ? getConfig().getString("textures.default", "") : selectTexture(player);
     }
 
     public void logCommandFailure(String message, Exception exception) {
@@ -861,6 +891,79 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
                 items.add((ItemStack) in.readObject());
             return items;
         }
+    }
+
+
+    /**
+     * Crea una bolsa a partir de un snapshot de un jugador que ya está offline.
+     * Se usa exclusivamente por logout-body. La DB de la bolsa sigue siendo la
+     * autoridad canónica y la entidad visual nunca entrega items.
+     */
+    public boolean createOfflineGrave(UUID id, UUID ownerUuid, String ownerName, Location deathLocation,
+                                      List<ItemStack> items, boolean ownerProtected, String capturedTexture) {
+        if (id == null || ownerUuid == null || deathLocation == null || deathLocation.getWorld() == null
+                || items == null || items.isEmpty())
+            return false;
+        if (!enabledWorld(deathLocation.getWorld().getName()))
+            return false;
+
+        Block target = findPlacementBlock(deathLocation);
+        if (target == null) {
+            getLogger().warning("No se encontró espacio seguro para la bolsa offline de " + ownerName + ".");
+            return false;
+        }
+
+        long created = Instant.now().getEpochSecond();
+        long expires = created + Math.max(1L, getConfig().getLong("settings.unopened-expire-hours", 168L)) * 3600L;
+        GraveMeta meta = new GraveMeta(id, ownerUuid, ownerName, target.getWorld().getName(),
+                target.getX(), target.getY(), target.getZ(), created, null, expires, ownerProtected);
+
+        SupportPatch supportPatch = stabilizePlacementSupport(target);
+        try {
+            byte[] blob = serializeItems(items);
+            placeOfflineGraveHead(target, id, ownerUuid, ownerName, capturedTexture);
+            insertGrave(meta, blob);
+            graves.put(id, meta);
+            gravesByBlock.put(meta.blockKey(), id);
+            return true;
+        } catch (Exception ex) {
+            if (isOurHead(target, id))
+                target.setType(Material.AIR, false);
+            rollbackSupportPatch(supportPatch);
+            getLogger().log(Level.SEVERE,
+                    "No se pudo crear la bolsa offline de " + ownerName + ".", ex);
+            return false;
+        }
+    }
+
+    private void placeOfflineGraveHead(Block block, UUID id, UUID ownerUuid, String ownerName,
+                                       String capturedTexture) {
+        block.setType(Material.PLAYER_HEAD, false);
+        Skull skull = (Skull) block.getState();
+        skull.getPersistentDataContainer().set(graveKey, PersistentDataType.STRING, id.toString());
+
+        String texture = capturedTexture == null ? "" : capturedTexture.trim();
+        if (!texture.isBlank()) {
+            PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID(), "MDVGrave");
+            String skinUrl = extractTextureUrl(texture);
+            if (skinUrl != null) {
+                try {
+                    PlayerTextures textures = profile.getTextures();
+                    textures.setSkin(URI.create(skinUrl).toURL());
+                    profile.setTextures(textures);
+                    skull.setOwnerProfile(profile);
+                } catch (Exception ex) {
+                    getLogger().log(Level.WARNING,
+                            "No se pudo aplicar la textura capturada a una bolsa offline.", ex);
+                    skull.setOwningPlayer(Bukkit.getOfflinePlayer(ownerUuid));
+                }
+            } else {
+                skull.setOwningPlayer(Bukkit.getOfflinePlayer(ownerUuid));
+            }
+        } else {
+            skull.setOwningPlayer(Bukkit.getOfflinePlayer(ownerUuid));
+        }
+        skull.update(true, false);
     }
 
     private void placeGraveHead(Block block, UUID id, Player owner) {

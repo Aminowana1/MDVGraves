@@ -1,5 +1,5 @@
 # ==========================================================
-# MDVGraves 1.0.8 - Bolsas de muerte ligeras para MDVCRAFT
+# MDVGraves 1.1.0 - Bolsas de muerte + cuerpos offline para MDVCRAFT
 # ==========================================================
 settings:
   enabled: true
@@ -56,6 +56,97 @@ settings:
   # Evita dos inventarios simultáneos sobre la misma bolsa.
   # Aunque se desactive, todos comparten un único inventario canónico.
   single-viewer-lock: true
+
+
+# ==========================================================
+# CUERPOS AL DESCONECTARSE
+# ==========================================================
+# Si un jugador sale en un mundo permitido, su cuerpo queda vulnerable durante
+# unos segundos. La entidad es solo una representación visual: los items
+# canónicos permanecen en el snapshot persistente de MDVGraves.
+logout-body:
+  enabled: true
+
+  # Solo funciona en el survival principal.
+  allowed-worlds:
+    - world
+
+  duration-seconds: 10
+
+  appearance:
+    # El cuerpo intenta copiar el perfil visual VIVO del jugador al desconectarse.
+    # Eso ya refleja el resultado final de MDVAspectos + SkinsRestorer.
+    # Si la versión de LibsDisguises no permite clonar el perfil vivo, se usa
+    # skin-memory.yml de MDVAspectos como fallback de nombre de skin.
+    provider-priority:
+      - MDVAspectos
+      - SkinRestorer
+      - PLAYER_PROFILE
+
+    use-saved-mdvaspectos-state: true
+    preserve-skin-clear-state: true
+    use-libsdisguises: true
+    show-player-name: true
+
+  entity:
+    base-type: HUSK
+    copy-equipment: true
+    copy-health: true
+    copy-absorption: true
+    ai: false
+    allow-knockback: true
+    natural-drops: false
+
+  reconnect:
+    remove-body-immediately: true
+    restore-body-location: true
+    restore-body-health: true
+    restore-body-absorption: true
+    restore-inventory: true
+
+  # MDVGraves conserva automáticamente los MMOItems con
+  # MMOITEMS_DISABLE_DEATH_DROP=true y los Soulbound que pertenezcan al jugador
+  # cuando MMOItems tenga soulbound.keep-on-death: true.
+  # También puedes declarar tags PDC propios que deban sobrevivir a la muerte.
+  protected-items:
+    persistent-data-keys: []
+
+  death:
+    create-grave: true
+    broadcast-death-message: true
+
+    # El jugador no murió como entidad Player real, por lo que se emula la
+    # pérdida de experiencia vanilla al aplicar el castigo tras autenticarse.
+    reset-experience: true
+
+    # IMPORTANTE con nLogin: MDVGraves espera la autenticación y después
+    # teletransporta al spawn de este mundo, por lo que el teleport de nLogin
+    # hacia la última posición no gana.
+    lobby-world: world5
+
+    messages:
+      player: '&c{player} fue asesinado por {killer}.'
+      mob: '&c{player} fue abatido por {killer}.'
+      environment: '&c{player} murió mientras estaba desconectado.'
+
+  nlogin:
+    # Se ejecuta unos ticks después de AuthenticateEvent para quedar por encima
+    # del retorno de nLogin a la última posición.
+    after-auth-delay-ticks: 1
+
+    # Mantiene GRAVE_CREATED un poco después de autenticar para cubrir teleports o
+    # restauraciones tardías de nLogin. Durante esta ventana no puede salir de world5
+    # ni mover el inventario. 60 ticks = 3 segundos.
+    post-auth-lock-ticks: 60
+
+    # Mientras exista una muerte offline pendiente, se permiten teleports hacia
+    # world5 pero se bloquea el retorno de nLogin a cualquier otro mundo.
+    lock-to-lobby-until-applied: true
+
+  safety:
+    ignore-server-shutdown: true
+    prevent-duplicate-bodies: true
+    persist-dead-state: true
 
 # ==========================================================
 # UTILIDADES POR PERMISO
@@ -147,6 +238,8 @@ messages:
   players-only: '&cEste comando solo puede usarlo un jugador.'
   grave-private: '&cLa bolsa de &f{owner} &cestá protegida y no puedes abrirla ni romperla.'
   keep-inventory: '&aHas conservado tu inventario y no se creó ninguna bolsa.'
+  logout-body-died: '&cTu cuerpo murió mientras estabas desconectado. &7Tus objetos perdidos quedaron en una bolsa. &cHas reaparecido en el lobby.'
+  logout-body-died-no-grave: '&cTu cuerpo murió mientras estabas desconectado. &7Conservaste tus objetos protegidos contra muerte. &cHas reaparecido en el lobby.'
   back-disabled: '&cEl regreso a bolsas está desactivado.'
   back-no-graves: '&cNo tienes ninguna bolsa activa a la que regresar.'
   back-cooldown: '&cDebes esperar &e{seconds} segundos &cpara volver a usar este comando.'

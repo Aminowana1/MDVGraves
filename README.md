@@ -1,4 +1,4 @@
-# MDVGraves 1.0.8
+# MDVGraves 1.1.0
 
 Plugin ligero de bolsas de muerte para Purpur/Paper 1.21.6 y Java 21.
 
@@ -16,6 +16,22 @@ Plugin ligero de bolsas de muerte para Purpur/Paper 1.21.6 y Java 21.
 - La limpieza ocurre cada 5 minutos. La única comprobación frecuente recorre exclusivamente las bolsas que estén abiertas.
 - No fuerza chunks durante la limpieza. Una cabeza expirada en un chunk descargado se limpia cuando ese chunk vuelva a cargar.
 
+
+
+## Novedades 1.1.0 — cuerpos al desconectarse
+
+- Solo en `world`, al desconectarse queda un cuerpo atacable durante 10 segundos.
+- El cuerpo copia vida, absorción, equipo y el perfil visual vivo del jugador mediante LibsDisguises.
+- Si el jugador vuelve antes de 10 s, recupera la posición/vida restante del cuerpo y conserva todo.
+- Si el cuerpo sobrevive 10 s, desaparece sin castigo.
+- Si muere, MDVGraves crea una única bolsa con los objetos que realmente se perderían.
+- Se conservan los MMOItems con `MMOITEMS_DISABLE_DEATH_DROP`, los Soulbound válidos cuando `soulbound.keep-on-death` está activo, y todo el inventario cuando corresponde `keepInventory`.
+- La sesión se persiste en SQLite con estados anti-duplicación.
+- Con nLogin, una muerte offline permanece bloqueada en `world5` hasta aplicar el respawn; nLogin no puede devolver al jugador a su posición anterior.
+- Tras autenticar se mantiene por defecto un bloqueo de 60 ticks y se reaplica una última vez el inventario/posición de muerte para cubrir tareas tardías de nLogin.
+- Mientras la muerte está pendiente, se bloquean movimiento de inventario, drop y pickup para cerrar ventanas de duplicación.
+
+Las clases del sistema viven separadas en `xyz.mdvcraft.mdvgraves.logoutbody`.
 
 ## Novedades 1.0.8
 
@@ -207,8 +223,8 @@ utilities:
 2. Haz una copia de `plugins/MDVGraves/graves.db` y `config.yml`.
 3. Reemplaza únicamente el JAR.
 4. No borres la carpeta `plugins/MDVGraves`.
-5. Añade el bloque `utilities:` y los mensajes nuevos a tu configuración existente.
-6. Inicia el servidor. La columna `owner_protected` se añade automáticamente a SQLite.
+5. Conserva tus valores actuales y añade/ajusta el bloque `logout-body:` usando el `config.yml` incluido.
+6. Inicia el servidor. MDVGraves crea automáticamente la tabla `logout_body_sessions` y conserva la tabla de tumbas existente.
 
 ## Compilar
 
@@ -221,7 +237,7 @@ mvn clean package
 El JAR sombreado queda en:
 
 ```text
-target/MDVGraves-1.0.8.jar
+target/MDVGraves-1.1.0.jar
 ```
 
 También se incluye `.github/workflows/build.yml` para compilar mediante GitHub Actions.

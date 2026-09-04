@@ -1,0 +1,36 @@
+MDVGraves 1.1.0 — Logout Bodies
+
+- Añade cuerpos atacables durante 10 s al desconectarse dentro de "world".
+- No crea cuerpos en world_nether, world_the_end, world5 ni otros mundos.
+- La entidad base es HUSK sin IA, con knockback, vida/absorción y equipo copiados.
+- LibsDisguises se usa por reflexión para copiar el perfil visual vivo del jugador.
+  El perfil vivo ya contiene el aspecto aplicado por MDVAspectos/SkinsRestorer.
+- MDVAspectos skin-memory.yml se usa como fallback de nombre de skin.
+- Si el jugador vuelve antes de 10 s, el cuerpo desaparece inmediatamente y el
+  inventario/vida/absorción/posición del cuerpo quedan pendientes hasta terminar
+  la autenticación de nLogin.
+- Si el cuerpo sobrevive 10 s, no hay castigo ni tumba.
+- Si el cuerpo muere, se crea una bolsa MDVGraves con los objetos perdibles.
+- Se conserva exactamente la protección relevante de MMOItems: ítems con
+  MMOITEMS_DISABLE_DEATH_DROP y Soulbound del propio jugador cuando
+  soulbound.keep-on-death está activado.
+- mdvgraves.keepinventory conserva todo el inventario también en muerte offline.
+- El gamerule vanilla keepInventory también se respeta en el sistema de cuerpos.
+- El cuerpo nunca dropea su equipo visual.
+- Al volver tras una muerte offline, se limpia el inventario, se restauran solo
+  los objetos protegidos, se reinicia la experiencia y el jugador queda en el
+  spawn de world5.
+- Integración nLogin: el castigo/restauración se aplica tras AuthenticateEvent.
+  Mientras la muerte está pendiente, MDVGraves bloquea teleports fuera de world5
+  y bloquea movimientos/drop/pickup de inventario para cerrar ventanas anti-dupe.
+  Además mantiene un bloqueo post-autenticación configurable (60 ticks por defecto)
+  y reaplica el resultado de muerte al final para ganar incluso a teleports tardíos.
+- SQLite añade logout_body_sessions con estados persistentes anti-duplicación:
+  BODY_ACTIVE, RESTORE_PENDING, DEATH_PROCESSING, GRAVE_CREATED, BODY_SAFE,
+  RESTORED.
+- Ante crash durante DEATH_PROCESSING, se verifica grave_id: si la tumba existe,
+  se conserva la muerte; si no existe, se restaura el inventario por seguridad.
+- Shutdown/reload nunca ejecuta cuerpos todavía vivos.
+- Al iniciar y al cargar chunks se eliminan cuerpos huérfanos de un crash anterior.
+- Los cuerpos se mantienen en chunk ticket solo durante su ventana de 10 s.
+- Incluye workflow GitHub Actions para compilar con Java 21 + Maven.
