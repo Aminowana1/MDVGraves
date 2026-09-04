@@ -1,0 +1,15 @@
+MDVGraves 1.1.1 — nLogin bridge fix
+
+FIX
+- Corrige IllegalArgumentException: object is not an instance of declaring class.
+- nLogin puede despachar el mismo HandlerList a distintos eventos de su API.
+- El bridge ahora verifica que el evento recibido sea realmente AuthenticateEvent
+  antes de invocar AuthenticateEvent#getPlayer() mediante reflexión.
+- LoginRequestEvent, PremiumLoginEvent y otros eventos de nLogin dejan de provocar
+  errores en consola.
+
+SEGURIDAD / COMPATIBILIDAD
+- Se mantiene el fallback por nLoginAPI#isAuthenticated(String) únicamente para
+  jugadores con una sesión logout-body pendiente.
+- No cambia la lógica de tumbas, cuerpos, inventarios protegidos ni lobby.
+- No requiere cambios nuevos en config.yml respecto de 1.1.0.
