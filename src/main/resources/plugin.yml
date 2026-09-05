@@ -1,5 +1,5 @@
 name: MDVGraves
-version: 1.1.1
+version: 1.1.2
 main: xyz.mdvcraft.mdvgraves.MDVGravesPlugin
 api-version: '1.21'
 author: MDVCRAFT
@@ -26,6 +26,9 @@ permissions:
   mdvgraves.private:
     default: false
   mdvgraves.keepinventory:
+    default: false
+  mdvgraves.logoutbody.bypass:
+    description: Nunca crea un cuerpo al desconectarse.
     default: false
   mdvgraves.texture.vip:
     default: false

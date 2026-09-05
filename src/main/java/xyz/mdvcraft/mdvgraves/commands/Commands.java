@@ -92,7 +92,7 @@ public final class Commands implements CommandExecutor, TabCompleter, Listener {
       return true;
     }
     if (args.length == 0 || args[0].equalsIgnoreCase("info")) {
-      sender.sendMessage(plugin.color("&6MDVGraves &f1.1.1 &7| Bolsas: &e" + plugin.getActiveGraveCount()
+      sender.sendMessage(plugin.color("&6MDVGraves &f1.1.2 &7| Bolsas: &e" + plugin.getActiveGraveCount()
           + " &7| Cuerpos: &e" + plugin.getActiveLogoutBodyCount()
           + " &7| Sesiones pendientes: &e" + plugin.getPendingLogoutBodySessionCount()));
       return true;

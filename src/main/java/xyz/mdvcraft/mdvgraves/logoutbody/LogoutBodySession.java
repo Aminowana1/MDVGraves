@@ -28,6 +28,7 @@ public record LogoutBodySession(
         boolean ownerProtected,
         String graveTexture,
         UUID graveId,
+        boolean deathNoticeSent,
         long createdAt,
         long expiresAt
 ) {
@@ -39,13 +40,13 @@ public record LogoutBodySession(
     public LogoutBodySession withState(LogoutBodyState newState) {
         return new LogoutBodySession(playerUuid, playerName, newState, world, x, y, z, yaw, pitch,
                 health, maxHealth, absorption, totalExperience, level, exp, inventory, protectedInventory,
-                keepAllInventory, ownerProtected, graveTexture, graveId, createdAt, expiresAt);
+                keepAllInventory, ownerProtected, graveTexture, graveId, deathNoticeSent, createdAt, expiresAt);
     }
 
     public LogoutBodySession withStateAndGrave(LogoutBodyState newState, UUID newGraveId) {
         return new LogoutBodySession(playerUuid, playerName, newState, world, x, y, z, yaw, pitch,
                 health, maxHealth, absorption, totalExperience, level, exp, inventory, protectedInventory,
-                keepAllInventory, ownerProtected, graveTexture, newGraveId, createdAt, expiresAt);
+                keepAllInventory, ownerProtected, graveTexture, newGraveId, deathNoticeSent, createdAt, expiresAt);
     }
 
     public LogoutBodySession withReconnectData(Location location, double bodyHealth, double bodyMaxHealth,
@@ -54,6 +55,12 @@ public record LogoutBodySession(
                 location.getWorld().getName(), location.getX(), location.getY(), location.getZ(),
                 location.getYaw(), location.getPitch(), bodyHealth, bodyMaxHealth, bodyAbsorption,
                 totalExperience, level, exp, inventory, protectedInventory, keepAllInventory,
-                ownerProtected, graveTexture, graveId, createdAt, expiresAt);
+                ownerProtected, graveTexture, graveId, deathNoticeSent, createdAt, expiresAt);
     }
+    public LogoutBodySession withDeathNoticeSent(boolean sent) {
+        return new LogoutBodySession(playerUuid, playerName, state, world, x, y, z, yaw, pitch,
+                health, maxHealth, absorption, totalExperience, level, exp, inventory, protectedInventory,
+                keepAllInventory, ownerProtected, graveTexture, graveId, sent, createdAt, expiresAt);
+    }
+
 }

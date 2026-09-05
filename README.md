@@ -1,4 +1,4 @@
-# MDVGraves 1.1.1
+# MDVGraves 1.1.2
 
 Plugin ligero de bolsas de muerte para Purpur/Paper 1.21.6 y Java 21.
 
@@ -17,6 +17,15 @@ Plugin ligero de bolsas de muerte para Purpur/Paper 1.21.6 y Java 21.
 - No fuerza chunks durante la limpieza. Una cabeza expirada en un chunk descargado se limpia cuando ese chunk vuelva a cargar.
 
 
+
+
+## Novedades 1.1.2 — cuerpos offline
+
+- Los cuerpos tienen gravedad explícita y reciben daño de caída vanilla (`gravity: true`, `fall-damage: true`).
+- El aviso al dueño cuando su cuerpo murió se persiste y se muestra una sola vez por cada muerte offline.
+- Los jugadores en modo `CREATIVE` no dejan cuerpo al desconectarse.
+- Nuevo permiso `mdvgraves.logoutbody.bypass`: quien lo tenga nunca deja cuerpo.
+- La migración SQLite añade automáticamente `death_notice_sent` sin borrar sesiones ni tumbas existentes.
 
 ## Novedades 1.1.0 — cuerpos al desconectarse
 
@@ -198,6 +207,7 @@ utilities:
 | `mdvgraves.back.cooldown.bypass` | OP | Ignorar cooldown de regreso |
 | `mdvgraves.private` | false | Hacer privadas las nuevas bolsas del jugador |
 | `mdvgraves.keepinventory` | false | Conservar inventario y no crear bolsa |
+| `mdvgraves.logoutbody.bypass` | false | Nunca dejar cuerpo al desconectarse |
 | `mdvgraves.texture.vip` | false | Textura VIP configurada |
 | `mdvgraves.texture.admin` | OP | Textura administrativa configurada |
 
@@ -237,7 +247,7 @@ mvn clean package
 El JAR sombreado queda en:
 
 ```text
-target/MDVGraves-1.1.1.jar
+target/MDVGraves-1.1.2.jar
 ```
 
 También se incluye `.github/workflows/build.yml` para compilar mediante GitHub Actions.

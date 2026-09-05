@@ -125,7 +125,7 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
         setupMmoItemsBridge();
         scheduleCleanup();
         scheduleOpenGraveIntegrityGuard();
-        getLogger().info("MDVGraves 1.1.1 activo. Bolsas cargadas: " + graves.size() + ", cuerpos activos: " + (logoutBodyManager == null ? 0 : logoutBodyManager.getActiveBodyCount()));
+        getLogger().info("MDVGraves 1.1.2 activo. Bolsas cargadas: " + graves.size() + ", cuerpos activos: " + (logoutBodyManager == null ? 0 : logoutBodyManager.getActiveBodyCount()));
     }
 
     @Override

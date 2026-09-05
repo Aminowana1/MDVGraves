@@ -1,0 +1,17 @@
+# Añadir/ajustar dentro de tu bloque logout-body existente.
+# Si no agregas estas claves, 1.1.2 usa estos mismos valores por defecto.
+
+logout-body:
+  entity:
+    gravity: true
+    fall-damage: true
+
+  safety:
+    ignore-creative-mode: true
+    bypass-permission: 'mdvgraves.logoutbody.bypass'
+
+# El texto puede personalizarse. MDVGraves garantiza que se envíe
+# una sola vez por cada muerte del cuerpo offline.
+messages:
+  logout-body-died: '&cTu cuerpo murió mientras estabas desconectado. &7Tus objetos perdidos quedaron en una bolsa. &cHas reaparecido en el lobby.'
+  logout-body-died-no-grave: '&cTu cuerpo murió mientras estabas desconectado. &7Conservaste tus objetos protegidos contra muerte. &cHas reaparecido en el lobby.'

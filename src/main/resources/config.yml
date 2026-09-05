@@ -1,5 +1,5 @@
 # ==========================================================
-# MDVGraves 1.1.1 - Bolsas de muerte + cuerpos offline para MDVCRAFT
+# MDVGraves 1.1.2 - Bolsas de muerte + cuerpos offline para MDVCRAFT
 # ==========================================================
 settings:
   enabled: true
@@ -93,6 +93,11 @@ logout-body:
     copy-equipment: true
     copy-health: true
     copy-absorption: true
+
+    # El cuerpo cae como una entidad normal y recibe daño de caída vanilla.
+    gravity: true
+    fall-damage: true
+
     ai: false
     allow-knockback: true
     natural-drops: false
@@ -145,6 +150,13 @@ logout-body:
 
   safety:
     ignore-server-shutdown: true
+
+    # Un jugador en CREATIVE nunca deja cuerpo al desconectarse.
+    ignore-creative-mode: true
+
+    # Quien tenga este permiso nunca deja cuerpo, incluso dentro de allowed-worlds.
+    # Déjalo vacío para desactivar el bypass por permiso.
+    bypass-permission: 'mdvgraves.logoutbody.bypass' 
     prevent-duplicate-bodies: true
     persist-dead-state: true
 
@@ -238,6 +250,7 @@ messages:
   players-only: '&cEste comando solo puede usarlo un jugador.'
   grave-private: '&cLa bolsa de &f{owner} &cestá protegida y no puedes abrirla ni romperla.'
   keep-inventory: '&aHas conservado tu inventario y no se creó ninguna bolsa.'
+  # Se muestra una sola vez por cada muerte de cuerpo offline.
   logout-body-died: '&cTu cuerpo murió mientras estabas desconectado. &7Tus objetos perdidos quedaron en una bolsa. &cHas reaparecido en el lobby.'
   logout-body-died-no-grave: '&cTu cuerpo murió mientras estabas desconectado. &7Conservaste tus objetos protegidos contra muerte. &cHas reaparecido en el lobby.'
   back-disabled: '&cEl regreso a bolsas está desactivado.'

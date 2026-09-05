@@ -38,10 +38,13 @@ public final class LogoutBodyRepository {
                       owner_protected INTEGER NOT NULL DEFAULT 0,
                       grave_texture TEXT NOT NULL DEFAULT '',
                       grave_id TEXT,
+                      death_notice_sent INTEGER NOT NULL DEFAULT 0,
                       created_at INTEGER NOT NULL,
                       expires_at INTEGER NOT NULL
                     )
                     """);
+            ensureColumn(st, "logout_body_sessions", "death_notice_sent",
+                    "INTEGER NOT NULL DEFAULT 0");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logout_body_state ON logout_body_sessions(state)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logout_body_expires ON logout_body_sessions(expires_at)");
         }
@@ -62,8 +65,8 @@ public final class LogoutBodyRepository {
                 INSERT INTO logout_body_sessions(
                   player_uuid,player_name,state,world,x,y,z,yaw,pitch,health,max_health,absorption,
                   total_experience,level,exp,inventory,protected_inventory,keep_all_inventory,
-                  owner_protected,grave_texture,grave_id,created_at,expires_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                  owner_protected,grave_texture,grave_id,death_notice_sent,created_at,expires_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(player_uuid) DO UPDATE SET
                   player_name=excluded.player_name,
                   state=excluded.state,
@@ -85,6 +88,7 @@ public final class LogoutBodyRepository {
                   owner_protected=excluded.owner_protected,
                   grave_texture=excluded.grave_texture,
                   grave_id=excluded.grave_id,
+                  death_notice_sent=excluded.death_notice_sent,
                   created_at=excluded.created_at,
                   expires_at=excluded.expires_at
                 """)) {
@@ -112,8 +116,9 @@ public final class LogoutBodyRepository {
                 ps.setNull(21, Types.VARCHAR);
             else
                 ps.setString(21, session.graveId().toString());
-            ps.setLong(22, session.createdAt());
-            ps.setLong(23, session.expiresAt());
+            ps.setInt(22, session.deathNoticeSent() ? 1 : 0);
+            ps.setLong(23, session.createdAt());
+            ps.setLong(24, session.expiresAt());
             ps.executeUpdate();
         }
     }
@@ -124,6 +129,20 @@ public final class LogoutBodyRepository {
             ps.setString(1, playerUuid.toString());
             ps.executeUpdate();
         }
+    }
+
+    private void ensureColumn(Statement st, String table, String column, String definition) throws SQLException {
+        boolean exists = false;
+        try (ResultSet rs = st.executeQuery("PRAGMA table_info(" + table + ")")) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("name"))) {
+                    exists = true;
+                    break;
+                }
+            }
+        }
+        if (!exists)
+            st.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
     }
 
     private LogoutBodySession read(ResultSet rs) throws Exception {
@@ -157,6 +176,7 @@ public final class LogoutBodyRepository {
                 rs.getInt("owner_protected") != 0,
                 rs.getString("grave_texture"),
                 graveId,
+                rs.getInt("death_notice_sent") != 0,
                 rs.getLong("created_at"),
                 rs.getLong("expires_at"));
     }

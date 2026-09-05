@@ -1,0 +1,18 @@
+MDVGraves 1.1.2 — logout-body quality update
+
+1. Cuerpos con gravedad explícita y daño de caída vanilla.
+   - logout-body.entity.gravity: true
+   - logout-body.entity.fall-damage: true
+
+2. Aviso de muerte offline de una sola vez.
+   - Se persiste death_notice_sent en SQLite.
+   - Evita mensajes duplicados aunque nLogin dispare/finalice la autenticación más de una vez.
+
+3. CREATIVE no deja cuerpo.
+   - logout-body.safety.ignore-creative-mode: true
+
+4. Bypass por permiso.
+   - mdvgraves.logoutbody.bypass
+   - Configurable en logout-body.safety.bypass-permission
+
+La columna SQLite nueva se añade automáticamente a instalaciones existentes.

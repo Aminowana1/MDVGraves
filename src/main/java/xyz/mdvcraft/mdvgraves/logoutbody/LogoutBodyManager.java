@@ -219,6 +219,16 @@ public final class LogoutBodyManager implements Listener {
             event.setCancelled(true);
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBodyFallDamage(EntityDamageEvent event) {
+        if (event.getCause() != EntityDamageEvent.DamageCause.FALL)
+            return;
+        if (!ownerByEntity.containsKey(event.getEntity().getUniqueId()))
+            return;
+        if (!plugin.getConfig().getBoolean("logout-body.entity.fall-damage", true))
+            event.setCancelled(true);
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBodyDamage(EntityDamageEvent event) {
         UUID owner = ownerByEntity.get(event.getEntity().getUniqueId());
@@ -298,6 +308,16 @@ public final class LogoutBodyManager implements Listener {
             return false;
         if (player == null || !player.isOnline() || player.isDead() || player.getHealth() <= 0.0)
             return false;
+
+        if (plugin.getConfig().getBoolean("logout-body.safety.ignore-creative-mode", true)
+                && player.getGameMode() == GameMode.CREATIVE)
+            return false;
+
+        String bypassPermission = plugin.getConfig().getString(
+                "logout-body.safety.bypass-permission", "mdvgraves.logoutbody.bypass");
+        if (bypassPermission != null && !bypassPermission.isBlank() && player.hasPermission(bypassPermission))
+            return false;
+
         String world = player.getWorld().getName();
         return plugin.getConfig().getStringList("logout-body.allowed-worlds").stream()
                 .anyMatch(name -> name.equalsIgnoreCase(world));
@@ -346,6 +366,7 @@ public final class LogoutBodyManager implements Listener {
                 plugin.isPrivateGraveOwner(player),
                 plugin.captureGraveTexture(player),
                 null,
+                false,
                 now,
                 now + duration);
 
@@ -401,7 +422,7 @@ public final class LogoutBodyManager implements Listener {
         body.setPersistent(true);
         body.setRemoveWhenFarAway(false);
         body.setCanPickupItems(false);
-        body.setGravity(true);
+        body.setGravity(plugin.getConfig().getBoolean("logout-body.entity.gravity", true));
         body.setCustomNameVisible(false);
 
         if (plugin.getConfig().getBoolean("logout-body.entity.copy-health", true)) {
@@ -708,12 +729,7 @@ public final class LogoutBodyManager implements Listener {
                 return;
             }
 
-            String messagePath = session.graveId() == null
-                    ? "messages.logout-body-died-no-grave"
-                    : "messages.logout-body-died";
-            plugin.send(player, messagePath,
-                    Map.of("owner", player.getName(),
-                            "grave", session.graveId() == null ? "no" : "sí"));
+            sendOfflineDeathNoticeOnce(player, session);
 
             // No se elimina la sesión en este instante. nLogin y otros plugins de
             // autenticación pueden tener tareas diferidas que restauran ubicación o
@@ -728,6 +744,23 @@ public final class LogoutBodyManager implements Listener {
         }
     }
 
+
+    private void sendOfflineDeathNoticeOnce(Player player, LogoutBodySession session) throws Exception {
+        if (session.deathNoticeSent())
+            return;
+
+        // Se persiste ANTES de enviar el chat. Así, múltiples callbacks de nLogin
+        // durante la misma autenticación nunca pueden duplicar el aviso.
+        LogoutBodySession marked = session.withDeathNoticeSent(true);
+        saveSession(marked);
+
+        String messagePath = marked.graveId() == null
+                ? "messages.logout-body-died-no-grave"
+                : "messages.logout-body-died";
+        plugin.send(player, messagePath,
+                Map.of("owner", player.getName(),
+                        "grave", marked.graveId() == null ? "no" : "sí"));
+    }
 
     private void schedulePostAuthDeathCompletion(UUID uuid) {
         cancelPostAuthDeath(uuid);
