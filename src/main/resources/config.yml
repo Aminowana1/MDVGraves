@@ -98,7 +98,9 @@ logout-body:
     gravity: true
     fall-damage: true
 
-    ai: false
+    # Se mantiene activa para conservar gravedad/caída; MDVGraves desactiva
+    # awareness, objetivos y ataques para que el cuerpo no actúe como un mob.
+    ai: true
     allow-knockback: true
     natural-drops: false
 

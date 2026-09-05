@@ -11,6 +11,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -219,6 +220,32 @@ public final class LogoutBodyManager implements Listener {
             event.setCancelled(true);
     }
 
+    /**
+     * Un cuerpo de desconexión nunca puede adquirir un objetivo.
+     * La IA permanece encendida únicamente para conservar la física vanilla.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBodyTarget(EntityTargetLivingEntityEvent event) {
+        if (!ownerByEntity.containsKey(event.getEntity().getUniqueId()))
+            return;
+
+        event.setCancelled(true);
+        event.setTarget(null);
+
+        if (event.getEntity() instanceof Mob mob)
+            mob.setTarget(null);
+    }
+
+    /**
+     * Defensa adicional: aunque otro plugin vuelva a darle un objetivo al Husk,
+     * el cuerpo jamás puede infligir daño a ninguna entidad.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBodyOutgoingDamage(EntityDamageByEntityEvent event) {
+        if (ownerByEntity.containsKey(event.getDamager().getUniqueId()))
+            event.setCancelled(true);
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBodyFallDamage(EntityDamageEvent event) {
         if (event.getCause() != EntityDamageEvent.DamageCause.FALL)
@@ -416,7 +443,17 @@ public final class LogoutBodyManager implements Listener {
 
         body.getPersistentDataContainer().set(bodyOwnerKey, PersistentDataType.STRING,
                 player.getUniqueId().toString());
-        body.setAI(plugin.getConfig().getBoolean("logout-body.entity.ai", false));
+        // La IA debe permanecer activada para conservar la física vanilla del mob
+        // (gravedad/caída en este servidor). Sin embargo el cuerpo no debe comportarse
+        // como un Husk real: se deja sin awareness, sin target y se bloquea cualquier
+        // ataque saliente mediante eventos.
+        boolean bodyAi = plugin.getConfig().getBoolean("logout-body.entity.ai", true);
+        body.setAI(bodyAi);
+        if (bodyAi) {
+            body.setAware(false);
+            body.setTarget(null);
+        }
+
         body.setCollidable(true);
         body.setSilent(false);
         body.setPersistent(true);
