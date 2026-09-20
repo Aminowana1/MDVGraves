@@ -1,2 +1,12 @@
 D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\commands\Commands.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\ActiveLogoutBody.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\LibsDisguisesBridge.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\LogoutBodyManager.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\LogoutBodyRepository.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\LogoutBodySession.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\LogoutBodyState.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\MDVAspectosAppearanceHint.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\NLoginBridge.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\PlayerInventorySnapshot.java
+D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\logoutbody\ProtectedItemPolicy.java
 D:\dev\mdv\MDVGraves\src\main\java\xyz\mdvcraft\mdvgraves\MDVGravesPlugin.java
