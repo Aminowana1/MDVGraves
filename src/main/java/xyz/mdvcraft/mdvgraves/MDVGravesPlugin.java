@@ -1042,7 +1042,9 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
         int baseX = death.getBlockX();
         int baseZ = death.getBlockZ();
 
-        int deathHeight = death.getBlockY() + 1;
+        // Round up only for fractional feet heights (paths/slabs). Never begin
+        // two blocks above the feet: that can place a grave on a low cave roof.
+        int deathHeight = (int) Math.ceil(death.getY());
         int startY = clampWithWorld(world, deathHeight);
 
         // Primero revisa exactamente la columna donde murió el jugador. Si no existe
@@ -1052,7 +1054,7 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
                 for (int dz = -r; dz <= r; dz++) {
                     if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r)
                         continue;
-                    Block target = findFirstSurfaceAbove(world, baseX + dx, startY, baseZ + dz);
+                    Block target = findFirstSurfaceBelow(world, baseX + dx, startY, baseZ + dz);
                     if (target != null)
                         return target;
                 }
@@ -1066,9 +1068,9 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
      * inmediatamente superior al primer bloque sólido encontrado. Esto evita bolsas
      * flotando cuando el jugador muere en caída, vuelo o sobre un precipicio.
      */
-    private Block findFirstSurfaceAbove(World world, int x, int startY, int z) {
+    private Block findFirstSurfaceBelow(World world, int x, int startY, int z) {
         int minY = world.getMinHeight();
-        int realStartY = clampWithWorld(world, startY + 1);
+        int realStartY = clampWithWorld(world, startY);
 
         for (int y = realStartY; y > minY; y--) {
             Block support = world.getBlockAt(x, y - 1, z);
