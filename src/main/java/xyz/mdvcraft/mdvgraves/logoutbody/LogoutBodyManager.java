@@ -12,6 +12,7 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -121,6 +122,9 @@ public final class LogoutBodyManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
+
+        Bukkit.getConsoleSender().sendMessage("[MDVGraves] Player health on quit:" + player.getHealth());
+
         if (!shouldCreateBody(player))
             return;
 
@@ -135,7 +139,8 @@ public final class LogoutBodyManager implements Listener {
         } catch (Exception ex) {
             plugin.getLogger().log(Level.SEVERE,
                     "No se pudo crear el cuerpo desconectado de " + player.getName()
-                            + ". El jugador conservará su inventario normal.", ex);
+                            + ". El jugador conservará su inventario normal.",
+                    ex);
             try {
                 repository.delete(uuid);
             } catch (Exception ignored) {
@@ -147,6 +152,17 @@ public final class LogoutBodyManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+
+        Bukkit.getConsoleSender().sendMessage("[MDVGraves] Player health on join:" + player.getHealth());
+
+        if (player.getHealth() <= 0.0) {
+            try {
+                // deleteSession(player.getUniqueId());
+                return;
+            } catch (Exception ex) {
+            }
+        }
+
         LogoutBodySession session = sessions.get(player.getUniqueId());
         if (session == null)
             return;
@@ -158,7 +174,8 @@ public final class LogoutBodyManager implements Listener {
 
         // Si el cuerpo ya murió, nunca dejamos que el playerdata antiguo permanezca
         // utilizable durante la pantalla de login. nLogin puede ocultar/restaurar stats
-        // temporalmente, por eso se vuelve a aplicar el snapshot protegido tras autenticar.
+        // temporalmente, por eso se vuelve a aplicar el snapshot protegido tras
+        // autenticar.
         if (session != null && session.state() == LogoutBodyState.GRAVE_CREATED) {
             prepareOfflineDeathInventory(player, session);
         }
@@ -168,7 +185,6 @@ public final class LogoutBodyManager implements Listener {
         // para cubrir configuraciones donde el evento no pudiera registrarse.
         scheduleAuthenticationFallback(player);
     }
-
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPendingDeathTeleport(PlayerTeleportEvent event) {
@@ -339,10 +355,18 @@ public final class LogoutBodyManager implements Listener {
     }
 
     private boolean shouldCreateBody(Player player) {
+        // Check server status
         if (!isEnabled() || shuttingDown || isServerStopping())
             return false;
+
+        // Check player status
         if (player == null || !player.isOnline() || player.isDead() || player.getHealth() <= 0.0)
             return false;
+
+        // Players in spectator mode should never generate bodies
+        if (player.getGameMode() == GameMode.SPECTATOR) {
+            return false;
+        }
 
         if (plugin.getConfig().getBoolean("logout-body.safety.ignore-creative-mode", true)
                 && player.getGameMode() == GameMode.CREATIVE)
@@ -620,7 +644,8 @@ public final class LogoutBodyManager implements Listener {
         } catch (Exception ex) {
             plugin.getLogger().log(Level.SEVERE,
                     "No se pudo procesar la muerte offline de " + session.playerName()
-                            + ". Se restaurará el inventario para evitar pérdidas/duplicaciones.", ex);
+                            + ". Se restaurará el inventario para evitar pérdidas/duplicaciones.",
+                    ex);
             try {
                 saveSession(session.withStateAndGrave(LogoutBodyState.RESTORE_PENDING, null));
             } catch (Exception nested) {
@@ -720,7 +745,6 @@ public final class LogoutBodyManager implements Listener {
         }
     }
 
-
     private void prepareOfflineDeathInventory(Player player, LogoutBodySession session) {
         try {
             player.closeInventory();
@@ -733,7 +757,8 @@ public final class LogoutBodyManager implements Listener {
         } catch (Throwable ex) {
             plugin.getLogger().log(Level.WARNING,
                     "No se pudo sanear inmediatamente el inventario de " + player.getName()
-                            + " tras una muerte offline; se reintentará después de nLogin.", ex);
+                            + " tras una muerte offline; se reintentará después de nLogin.",
+                    ex);
         }
     }
 
@@ -788,7 +813,6 @@ public final class LogoutBodyManager implements Listener {
                     "No se pudo aplicar la muerte offline de " + player.getName(), ex);
         }
     }
-
 
     private void sendOfflineDeathNoticeOnce(Player player, LogoutBodySession session) throws Exception {
         if (session.deathNoticeSent())
@@ -861,7 +885,8 @@ public final class LogoutBodyManager implements Listener {
         } catch (Exception ex) {
             plugin.getLogger().log(Level.SEVERE,
                     "No se pudo cerrar el bloqueo post-login de la muerte offline de " + player.getName()
-                            + ". La sesión seguirá persistida para reintentarlo.", ex);
+                            + ". La sesión seguirá persistida para reintentarlo.",
+                    ex);
         }
     }
 

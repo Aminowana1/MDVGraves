@@ -125,7 +125,8 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
         setupMmoItemsBridge();
         scheduleCleanup();
         scheduleOpenGraveIntegrityGuard();
-        getLogger().info("MDVGraves 1.1.2 activo. Bolsas cargadas: " + graves.size() + ", cuerpos activos: " + (logoutBodyManager == null ? 0 : logoutBodyManager.getActiveBodyCount()));
+        getLogger().info("MDVGraves 1.1.2 activo. Bolsas cargadas: " + graves.size() + ", cuerpos activos: "
+                + (logoutBodyManager == null ? 0 : logoutBodyManager.getActiveBodyCount()));
     }
 
     @Override
@@ -893,14 +894,13 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
         }
     }
 
-
     /**
      * Crea una bolsa a partir de un snapshot de un jugador que ya está offline.
      * Se usa exclusivamente por logout-body. La DB de la bolsa sigue siendo la
      * autoridad canónica y la entidad visual nunca entrega items.
      */
     public boolean createOfflineGrave(UUID id, UUID ownerUuid, String ownerName, Location deathLocation,
-                                      List<ItemStack> items, boolean ownerProtected, String capturedTexture) {
+            List<ItemStack> items, boolean ownerProtected, String capturedTexture) {
         if (id == null || ownerUuid == null || deathLocation == null || deathLocation.getWorld() == null
                 || items == null || items.isEmpty())
             return false;
@@ -937,7 +937,7 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
     }
 
     private void placeOfflineGraveHead(Block block, UUID id, UUID ownerUuid, String ownerName,
-                                       String capturedTexture) {
+            String capturedTexture) {
         block.setType(Material.PLAYER_HEAD, false);
         Skull skull = (Skull) block.getState();
         skull.getPersistentDataContainer().set(graveKey, PersistentDataType.STRING, id.toString());
@@ -1032,13 +1032,18 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
         return getConfig().getString("textures.default", "");
     }
 
+    int clampWithWorld(World world, int height) {
+        return Math.clamp(height, world.getMinHeight() + 1, world.getMaxHeight() - 1);
+    }
+
     private Block findPlacementBlock(Location death) {
         int radius = Math.max(0, getConfig().getInt("settings.placement-search-radius", 2));
         World world = death.getWorld();
         int baseX = death.getBlockX();
         int baseZ = death.getBlockZ();
-        int startY = Math.max(world.getMinHeight() + 1,
-                Math.min(world.getMaxHeight() - 1, death.getBlockY()));
+
+        int deathHeight = death.getBlockY() + 1;
+        int startY = clampWithWorld(world, deathHeight);
 
         // Primero revisa exactamente la columna donde murió el jugador. Si no existe
         // una superficie utilizable, amplía la búsqueda por anillos cercanos.
@@ -1063,7 +1068,7 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
      */
     private Block findFirstSurfaceAbove(World world, int x, int startY, int z) {
         int minY = world.getMinHeight();
-        int realStartY = Math.max(startY + 1, world.getMaxHeight());
+        int realStartY = clampWithWorld(world, startY + 1);
 
         for (int y = realStartY; y > minY; y--) {
             Block support = world.getBlockAt(x, y - 1, z);
