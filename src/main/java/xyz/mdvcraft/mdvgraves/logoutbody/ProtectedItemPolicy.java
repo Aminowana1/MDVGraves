@@ -6,6 +6,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import xyz.mdvcraft.mdvgraves.MDVGravesPlugin;
@@ -18,6 +19,7 @@ import java.util.UUID;
 import java.util.logging.Level;
 
 public final class ProtectedItemPolicy {
+    private static final NamespacedKey SOCIAL_MENU_ITEM = NamespacedKey.fromString("mdvsocial:social_menu_item");
     private final MDVGravesPlugin plugin;
     private Method nbtGet;
     private Method nbtGetString;
@@ -60,6 +62,12 @@ public final class ProtectedItemPolicy {
     public boolean isProtected(ItemStack item, UUID ownerUuid) {
         if (item == null || item.getType().isAir())
             return false;
+
+        // Same marker used by MDVSocial's PlayerDeathEvent filter. Offline bodies
+        // do not fire that event; retain the menu item in the owner's snapshot.
+        if (item.hasItemMeta() && Byte.valueOf((byte) 1).equals(
+                item.getItemMeta().getPersistentDataContainer().get(SOCIAL_MENU_ITEM, PersistentDataType.BYTE)))
+            return true;
 
         if (isMmoItemsDisableDeathDrop(item))
             return true;

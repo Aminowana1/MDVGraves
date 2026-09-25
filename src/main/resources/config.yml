@@ -97,6 +97,8 @@ logout-body:
     # El cuerpo cae como una entidad normal y recibe daño de caída vanilla.
     gravity: true
     fall-damage: true
+    # Evita que el cuerpo muera al quedar parcialmente dentro de bloques.
+    suffocation-damage: false
 
     # Se mantiene activa para conservar gravedad/caída; MDVGraves desactiva
     # awareness, objetivos y ataques para que el cuerpo no actúe como un mob.
