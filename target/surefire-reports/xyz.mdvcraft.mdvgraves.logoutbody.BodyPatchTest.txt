@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: xyz.mdvcraft.mdvgraves.logoutbody.BodyPatchTest
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.974 s -- in xyz.mdvcraft.mdvgraves.logoutbody.BodyPatchTest
