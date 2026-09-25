@@ -247,6 +247,14 @@ public final class LogoutBodyManager implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBodySuffocationDamage(EntityDamageEvent event) {
+        if (event.getCause() == EntityDamageEvent.DamageCause.SUFFOCATION
+                && ownerByEntity.containsKey(event.getEntity().getUniqueId())
+                && !plugin.getConfig().getBoolean("logout-body.entity.suffocation-damage", false))
+            event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBodyFallDamage(EntityDamageEvent event) {
         if (event.getCause() != EntityDamageEvent.DamageCause.FALL)
             return;
