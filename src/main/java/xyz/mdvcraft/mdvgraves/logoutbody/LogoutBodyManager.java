@@ -222,6 +222,45 @@ public final class LogoutBodyManager implements Listener {
         scheduleAuthenticationFallback(player);
     }
 
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void keepMmoItemsOnDeath(PlayerDeathEvent event) {
+        Player player = event.getEntity();
+        if (shuttingDown || !plugin.getConfig().getBoolean("settings.enabled", true)
+                || !isTrackedDeathWorld(player.getWorld().getName()) || event.getKeepInventory())
+            return;
+
+        // Paper conserva estas pilas en sus slots y las guarda con el playerdata.
+        // MMOItems HIGH ya no las ve como drops ni las guarda en una devolución
+        // diferida que puede apuntar al Player de la conexión anterior.
+        List<ItemStack> alreadyKept = new ArrayList<>(event.getItemsToKeep());
+        Iterator<ItemStack> drops = event.getDrops().iterator();
+        while (drops.hasNext()) {
+            ItemStack item = drops.next();
+            if (!protectedItems.isMmoItemsDisableDeathDrop(item))
+                continue;
+            // Consumir cada entrada existente una sola vez: dos pilas idénticas
+            // necesitan dos entradas exactas y no una comprobación contains simple.
+            int existing = alreadyKept.indexOf(item);
+            if (existing >= 0)
+                alreadyKept.remove(existing);
+            else
+                event.getItemsToKeep().add(item.clone());
+            drops.remove();
+        }
+    }
+
+    public boolean keepRefundedMmoItemOnDeath(PlayerDeathEvent event, ItemStack item) {
+        if (shuttingDown || !plugin.getConfig().getBoolean("settings.enabled", true)
+                || !isTrackedDeathWorld(event.getEntity().getWorld().getName()) || event.getKeepInventory()
+                || !protectedItems.isMmoItemsDisableDeathDrop(item))
+            return false;
+
+        // Es una unidad reservada fuera del inventario antes de morir. Incluso si
+        // hay otra pila idéntica conservada, esta entrada representa una unidad extra.
+        event.getItemsToKeep().add(item.clone());
+        return true;
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onOnlineDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();

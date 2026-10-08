@@ -276,9 +276,9 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
             boolean keepsInventory = event.getKeepInventory()
                     || (getConfig().getBoolean("utilities.keep-inventory.enabled", true)
                             && player.hasPermission("mdvgraves.keepinventory"));
-            // Una fruta reservada pertenece a los drops de esta muerte; devolverla
-            // al inventario ya muerto haría que vanilla la borrase al reaparecer.
-            request.refundDrops = keepsInventory ? null : event.getDrops();
+            // La fruta reservada se devuelve mediante esta muerte para que Paper
+            // conserve también su unidad si tiene disable-death-drop de MMOItems.
+            request.refundDeathEvent = keepsInventory ? null : event;
             finishGraveBack(request, GraveBackResult.TELEPORT_FAILED);
         }
         if (!getConfig().getBoolean("settings.enabled", true))
@@ -1568,12 +1568,14 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
             if (!request.fruitEvaluated)
                 request.fruitCharged = wasFruitAlreadyConsumed(player, request.fruitUse);
             if (result != GraveBackResult.SUCCESS && request.fruitCharged) {
-                if (request.refundDrops == null) {
+                if (request.refundDeathEvent == null) {
                     refundDeathFruit(player, request.fruitUse.snapshot());
                 } else {
                     ItemStack refund = request.fruitUse.snapshot().clone();
                     refund.setAmount(1);
-                    request.refundDrops.add(refund);
+                    if (logoutBodyManager == null
+                            || !logoutBodyManager.keepRefundedMmoItemOnDeath(request.refundDeathEvent, refund))
+                        request.refundDeathEvent.getDrops().add(refund);
                 }
             }
             long lockMs = Math.max(750L, getConfig().getLong("utilities.death-fruit.use-lock-ms", 750L));
@@ -1932,7 +1934,7 @@ public final class MDVGravesPlugin extends JavaPlugin implements Listener {
         private long cooldownSeconds;
         private boolean fruitEvaluated;
         private boolean fruitCharged;
-        private List<ItemStack> refundDrops;
+        private PlayerDeathEvent refundDeathEvent;
 
         private GraveBackRequest(Player player, boolean bypassEnabled, boolean bypassPermission,
                 boolean bypassCooldown, boolean sendMessages, PendingDeathFruitUse fruitUse,

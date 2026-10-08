@@ -86,8 +86,8 @@ public final class ProtectedItemPolicy {
     }
 
 
-    private boolean isMmoItemsDisableDeathDrop(ItemStack item) {
-        if (!mythicBridgeReady)
+    public boolean isMmoItemsDisableDeathDrop(ItemStack item) {
+        if (item == null || item.getType().isAir() || !mythicBridgeReady)
             return false;
         try {
             Object nbt = nbtGet.invoke(null, item);

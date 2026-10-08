@@ -1,6 +1,12 @@
-# MDVGraves 1.1.8
+# MDVGraves 1.1.9
 
 Plugin ligero de bolsas de muerte para Purpur/Paper 1.21.6 y Java 21.
+
+## Corrección 1.1.9 — objetos persistentes al reconectar
+
+Los MMOItems con `disable-death-drop: true` se conservan mediante la retención nativa de Paper al morir. Permanecen en el inventario del jugador, con sus cantidades y atributos, aunque salga desde la pantalla de muerte y reconecte. Se excluyen de los drops antes de la devolución diferida de MMOItems, evitando que esa devolución apunte a la conexión anterior o añada copias.
+
+Se mantiene el respawn al lobby con nLogin y las correcciones anteriores de bolsas y graveback. No se cambian opciones ni bases de datos. Las 60 pruebas automatizadas pasan; los detalles de instalación y comprobación están en [UPDATE-1.1.9.md](UPDATE-1.1.9.md).
 
 ## Correcciones 1.1.8
 

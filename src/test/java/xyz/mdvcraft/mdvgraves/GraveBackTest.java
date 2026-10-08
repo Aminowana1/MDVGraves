@@ -24,6 +24,7 @@ import org.bukkit.scheduler.BukkitTask;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import xyz.mdvcraft.mdvgraves.logoutbody.LogoutBodyManager;
+import xyz.mdvcraft.mdvgraves.logoutbody.ProtectedItemPolicy;
 import xyz.mdvcraft.mdvgraves.commands.Commands;
 
 import java.lang.reflect.*;
@@ -57,7 +58,11 @@ class GraveBackTest {
     private Location destination;
 
     private static void field(Object target, String name, Object value) throws Exception {
-        Field field = MDVGravesPlugin.class.getDeclaredField(name);
+        field(target, MDVGravesPlugin.class, name, value);
+    }
+
+    private static void field(Object target, Class<?> ownerClass, String name, Object value) throws Exception {
+        Field field = ownerClass.getDeclaredField(name);
         field.setAccessible(true);
         field.set(target, value);
     }
@@ -386,6 +391,74 @@ class GraveBackTest {
         assertEquals(3, contents[0].getAmount());
         verify(death, never()).getDrops();
         verify(inventory, times(1)).addItem(any(ItemStack.class));
+    }
+
+    @Test void deathRefundKeepsOneExtraProtectedFruitBesideIdenticalNativeKeep() throws Exception {
+        LogoutBodyManager manager = refundManager(true);
+        contents[0] = fruit(2);
+        useFruit(EquipmentSlot.HAND);
+        tick();
+        assertEquals(1, contents[0].getAmount());
+        PlayerDeathEvent death = mock(PlayerDeathEvent.class);
+        List<ItemStack> drops = new ArrayList<>(List.of(contents[0]));
+        List<ItemStack> kept = new ArrayList<>();
+        when(death.getEntity()).thenReturn(player);
+        when(death.getDrops()).thenReturn(drops);
+        when(death.getItemsToKeep()).thenReturn(kept);
+        manager.keepMmoItemsOnDeath(death);
+        assertEquals(1, kept.size());
+        ItemStack originalKeep = kept.getFirst();
+
+        plugin.onDeath(death);
+        assertTrue(drops.isEmpty());
+        assertEquals(2, kept.size());
+        assertSame(originalKeep, kept.getFirst());
+        assertNotSame(originalKeep, kept.getLast());
+        assertTrue(originalKeep.isSimilar(kept.getLast()));
+        assertEquals(1, originalKeep.getAmount());
+        assertEquals(1, kept.getLast().getAmount());
+        verify(inventory, never()).addItem(any(ItemStack.class));
+        completeChunks();
+        timeouts.forEach(Runnable::run);
+        assertEquals(2, kept.stream().mapToInt(ItemStack::getAmount).sum());
+        verify(player, never()).teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+    }
+
+    @Test void deathRefundAddsOrdinaryFruitToDropsWithoutNativeKeeping() throws Exception {
+        LogoutBodyManager manager = refundManager(false);
+        contents[0] = fruit(2);
+        useFruit(EquipmentSlot.HAND);
+        tick();
+        PlayerDeathEvent death = mock(PlayerDeathEvent.class);
+        List<ItemStack> drops = new ArrayList<>(List.of(contents[0]));
+        List<ItemStack> kept = new ArrayList<>();
+        when(death.getEntity()).thenReturn(player);
+        when(death.getDrops()).thenReturn(drops);
+        when(death.getItemsToKeep()).thenReturn(kept);
+        manager.keepMmoItemsOnDeath(death);
+
+        plugin.onDeath(death);
+        assertTrue(kept.isEmpty());
+        assertEquals(2, drops.size());
+        assertEquals(1, drops.getLast().getAmount());
+        verify(inventory, never()).addItem(any(ItemStack.class));
+        completeChunks();
+        timeouts.forEach(Runnable::run);
+        assertEquals(2, drops.stream().mapToInt(ItemStack::getAmount).sum());
+        verify(player, never()).teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+    }
+
+    private LogoutBodyManager refundManager(boolean protectedFruit) throws Exception {
+        when(world.getName()).thenReturn("world");
+        config.set("logout-body.allowed-worlds", List.of("world"));
+        LogoutBodyManager manager = mock(LogoutBodyManager.class, CALLS_REAL_METHODS);
+        ProtectedItemPolicy policy = mock(ProtectedItemPolicy.class);
+        when(policy.isMmoItemsDisableDeathDrop(any(ItemStack.class))).thenReturn(protectedFruit);
+        field(manager, LogoutBodyManager.class, "plugin", plugin);
+        field(manager, LogoutBodyManager.class, "protectedItems", policy);
+        field(manager, LogoutBodyManager.class, "sessions", new HashMap<>());
+        field(plugin, "logoutBodyManager", manager);
+        return manager;
     }
 
     @Test void timeoutRefundsDuringLoadingAndCannotTeleportAfterChunksEventuallyArrive() {
