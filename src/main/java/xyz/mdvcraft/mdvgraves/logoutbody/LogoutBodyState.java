@@ -5,6 +5,9 @@ public enum LogoutBodyState {
     RESTORE_PENDING,
     DEATH_PROCESSING,
     GRAVE_CREATED,
+    // Muerte Player real: el inventario ya lo resuelve Minecraft/PlayerDeathEvent.
+    ONLINE_DEATH,
+    RESPAWN_PENDING,
     BODY_SAFE,
     RESTORED
 }

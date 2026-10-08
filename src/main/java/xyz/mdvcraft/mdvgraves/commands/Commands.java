@@ -48,9 +48,9 @@ public final class Commands implements CommandExecutor, TabCompleter, Listener {
           plugin.send(sender, "messages.player-not-found", Map.of("player", args[0]));
           return true;
         }
-        boolean success = plugin.executeGraveBack(target, true, true, true, true);
-        plugin.send(sender, success ? "messages.back-other-success" : "messages.back-other-failed",
-            Map.of("player", target.getName()));
+        plugin.executeGraveBack(target, true, true, true, true,
+            success -> plugin.send(sender, success ? "messages.back-other-success" : "messages.back-other-failed",
+                Map.of("player", target.getName())));
         return true;
       }
       if (!(sender instanceof Player player)) {
@@ -75,9 +75,9 @@ public final class Commands implements CommandExecutor, TabCompleter, Listener {
           plugin.send(sender, "messages.player-not-found", Map.of("player", args[1]));
           return true;
         }
-        boolean success = plugin.executeGraveBack(target, true, true, true, true);
-        plugin.send(sender, success ? "messages.back-other-success" : "messages.back-other-failed",
-            Map.of("player", target.getName()));
+        plugin.executeGraveBack(target, true, true, true, true,
+            success -> plugin.send(sender, success ? "messages.back-other-success" : "messages.back-other-failed",
+                Map.of("player", target.getName())));
         return true;
       }
       if (!(sender instanceof Player player)) {
@@ -92,7 +92,7 @@ public final class Commands implements CommandExecutor, TabCompleter, Listener {
       return true;
     }
     if (args.length == 0 || args[0].equalsIgnoreCase("info")) {
-      sender.sendMessage(plugin.color("&6MDVGraves &f1.1.2 &7| Bolsas: &e" + plugin.getActiveGraveCount()
+      sender.sendMessage(plugin.color("&6MDVGraves &f" + plugin.getDescription().getVersion() + " &7| Bolsas: &e" + plugin.getActiveGraveCount()
           + " &7| Cuerpos: &e" + plugin.getActiveLogoutBodyCount()
           + " &7| Sesiones pendientes: &e" + plugin.getPendingLogoutBodySessionCount()));
       return true;

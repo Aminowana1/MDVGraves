@@ -1,6 +1,16 @@
-# MDVGraves 1.1.4
+# MDVGraves 1.1.8
 
 Plugin ligero de bolsas de muerte para Purpur/Paper 1.21.6 y Java 21.
+
+## Correcciones 1.1.8
+
+- Salir desde la pantalla de muerte deja un respawn pendiente persistente. Al reconectar se completa en el lobby configurado y se recuperan vida y alimentación, con protección frente al retorno tardío de nLogin. No se restaura el inventario previo a la muerte ni se crea otra bolsa.
+- Las bolsas cerradas y abiertas son inmunes a agua, lava, cubos directos, dispensadores, fuego y destrucción indirecta por física. No cae la cabeza decorativa. La rotura manual y las explosiones siguen las reglas configuradas.
+- Graveback y la Fruta de la Muerte esperan al siguiente tick y cargan el destino de forma asíncrona. Una sola petición puede estar pendiente por jugador. La fruta se reserva después de que MMOItems termine la interacción y se devuelve si el viaje falla.
+
+No hace falta borrar ni reemplazar la configuración o las bases de datos. Se utiliza `logout-body.death.lobby-world` (por defecto `world5`). El antiguo `settings.protect-from-fluids` se conserva por compatibilidad; la inmunidad a fluidos es obligatoria desde esta versión.
+
+El mensaje reportado fue aproximado: `move wrongly` / `move faster`. Esta versión corrige la carga síncrona y las solicitudes repetidas en la ruta del plugin; la validación de clientes Bedrock y de la combinación nLogin/MMOItems/Geyser requiere una prueba en el servidor.
 
 ## Comportamiento base
 

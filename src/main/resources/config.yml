@@ -1,5 +1,5 @@
 # ==========================================================
-# MDVGraves 1.1.2 - Bolsas de muerte + cuerpos offline para MDVCRAFT
+# MDVGraves 1.1.8 - Bolsas de muerte + cuerpos offline para MDVCRAFT
 # ==========================================================
 settings:
   enabled: true
@@ -42,6 +42,8 @@ settings:
   # false: las bolsas son inmunes a explosiones.
   explosions-break-graves: true
   protect-from-pistons: true
+  # Compatibilidad con configuraciones anteriores: desde 1.1.8 las bolsas
+  # siempre son inmunes a fluidos, aunque este valor sea false.
   protect-from-fluids: true
 
   # Las bolsas son una excepción intencional a las protecciones de región:
@@ -143,12 +145,12 @@ logout-body:
     # del retorno de nLogin a la última posición.
     after-auth-delay-ticks: 1
 
-    # Mantiene GRAVE_CREATED un poco después de autenticar para cubrir teleports o
+    # Mantiene las muertes pendientes un poco después de autenticar para cubrir teleports o
     # restauraciones tardías de nLogin. Durante esta ventana no puede salir de world5
     # ni mover el inventario. 60 ticks = 3 segundos.
     post-auth-lock-ticks: 60
 
-    # Mientras exista una muerte offline pendiente, se permiten teleports hacia
+    # Mientras exista una muerte pendiente, se permiten teleports hacia
     # world5 pero se bloquea el retorno de nLogin a cualquier otro mundo.
     lock-to-lobby-until-applied: true
 
@@ -185,8 +187,8 @@ utilities:
 
   # Consumible MMOItems: Fruta de la Muerte.
   # Debe ser un item del tipo/ID configurados y tener desactivado el consumo
-  # automático por clic derecho en MMOItems. MDVGraves quita 1 unidad solo
-  # DESPUÉS de un teleport exitoso.
+  # automático por clic derecho en MMOItems. MDVGraves reserva 1 unidad
+  # al siguiente tick y la devuelve si el teleport falla.
   #
   # Comando que debe ejecutar MMOItems DESDE CONSOLA al consumir:
   # mdvgraves deathfruit %player%

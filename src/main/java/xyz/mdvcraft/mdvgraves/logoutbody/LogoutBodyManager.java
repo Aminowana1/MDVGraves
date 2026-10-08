@@ -18,6 +18,7 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
@@ -49,6 +50,7 @@ public final class LogoutBodyManager implements Listener {
     private final Map<UUID, DamageAttribution> lastDamage = new ConcurrentHashMap<>();
     private final Map<UUID, BukkitTask> authFallbackTasks = new ConcurrentHashMap<>();
     private final Map<UUID, BukkitTask> postAuthDeathTasks = new ConcurrentHashMap<>();
+    private final Set<UUID> requestedRespawns = ConcurrentHashMap.newKeySet();
 
     private final NamespacedKey bodyOwnerKey;
     private volatile boolean shuttingDown;
@@ -89,6 +91,7 @@ public final class LogoutBodyManager implements Listener {
         for (BukkitTask task : postAuthDeathTasks.values())
             task.cancel();
         postAuthDeathTasks.clear();
+        requestedRespawns.clear();
 
         // Un apagado/reload nunca puede contar como una muerte offline. Todo cuerpo
         // todavía vivo se resuelve de forma segura y el playerdata normal conserva
@@ -119,16 +122,30 @@ public final class LogoutBodyManager implements Listener {
         return sessions.size();
     }
 
+    public boolean isPendingRespawn(UUID playerUuid) {
+        LogoutBodySession session = sessions.get(playerUuid);
+        return session != null && (needsLobbyCompletion(session)
+                || session.state() == LogoutBodyState.ONLINE_DEATH
+                || session.state() == LogoutBodyState.DEATH_PROCESSING);
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+        requestedRespawns.remove(uuid);
+        cancelAuthFallback(uuid);
+        cancelPostAuthDeath(uuid);
 
-        Bukkit.getConsoleSender().sendMessage("[MDVGraves] Player health on quit:" + player.getHealth());
+        LogoutBodySession pending = sessions.get(uuid);
+        if (pending != null && pending.state() == LogoutBodyState.ONLINE_DEATH) {
+            markRespawnPending(pending);
+            return;
+        }
 
         if (!shouldCreateBody(player))
             return;
 
-        UUID uuid = player.getUniqueId();
         // Si ya existe cualquier sesión, no se crea otra. Esto cubre reintentos de
         // autenticación y elimina una vía de duplicación.
         if (sessions.containsKey(uuid) || activeByPlayer.containsKey(uuid))
@@ -152,20 +169,24 @@ public final class LogoutBodyManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-
-        Bukkit.getConsoleSender().sendMessage("[MDVGraves] Player health on join:" + player.getHealth());
-
-        if (player.getHealth() <= 0.0) {
-            try {
-                // deleteSession(player.getUniqueId());
-                return;
-            } catch (Exception ex) {
-            }
-        }
-
+        requestedRespawns.remove(player.getUniqueId());
         LogoutBodySession session = sessions.get(player.getUniqueId());
+        if (session == null && (player.isDead() || player.getHealth() <= 0.0)
+                && plugin.getConfig().getBoolean("settings.enabled", true)
+                && isTrackedDeathWorld(player.getWorld().getName())) {
+            // Cubre playerdata ya muerto al instalar esta versión, sin una marca
+            // de muerte creada por MDVGraves en la conexión anterior.
+            recordOnlineDeath(player);
+            session = sessions.get(player.getUniqueId());
+        }
         if (session == null)
             return;
+
+        // Puede quedar ONLINE_DEATH si el servidor cayó en la pantalla de muerte.
+        // El estado persistido, y no la vida que restaura nLogin, decide si falta
+        // completar el respawn.
+        if (session.state() == LogoutBodyState.ONLINE_DEATH)
+            session = markRespawnPending(session);
 
         if (session.state() == LogoutBodyState.BODY_ACTIVE) {
             reclaimActiveBody(player, session);
@@ -180,10 +201,102 @@ public final class LogoutBodyManager implements Listener {
             prepareOfflineDeathInventory(player, session);
         }
 
+        if (session != null && session.state() == LogoutBodyState.RESPAWN_PENDING
+                && (player.isDead() || player.getHealth() <= 0.0)) {
+            UUID uuid = player.getUniqueId();
+            // El respawn real libera la pantalla de muerte para que pueda usar
+            // /login. Aún no se aplica el resultado final ni se borra la sesión.
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                Player online = Bukkit.getPlayer(uuid);
+                LogoutBodySession current = sessions.get(uuid);
+                if (online == player && online.isOnline() && current != null
+                        && current.state() == LogoutBodyState.RESPAWN_PENDING
+                        && (online.isDead() || online.getHealth() <= 0.0))
+                    requestNativeRespawn(online);
+            }, 1L);
+        }
+
         // Si nLogin está presente, esperamos a que termine la autenticación para
         // ganar a su teleport de "última posición". El fallback consulta la propia API
         // para cubrir configuraciones donde el evento no pudiera registrarse.
         scheduleAuthenticationFallback(player);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onOnlineDeath(PlayerDeathEvent event) {
+        Player player = event.getEntity();
+        if (!plugin.getConfig().getBoolean("settings.enabled", true)
+                || shuttingDown || !isTrackedDeathWorld(player.getWorld().getName()))
+            return;
+
+        recordOnlineDeath(player);
+    }
+
+    private void recordOnlineDeath(Player player) {
+        Location location = player.getLocation();
+        long now = Instant.now().getEpochSecond();
+        // No se captura el inventario previo a la muerte: restaurarlo después
+        // duplicaría los objetos que PlayerDeathEvent ya dejó en la bolsa.
+        PlayerInventorySnapshot empty = new PlayerInventorySnapshot(
+                new ItemStack[0], new ItemStack[0], null, 0);
+        LogoutBodySession session = new LogoutBodySession(
+                player.getUniqueId(), player.getName(), LogoutBodyState.ONLINE_DEATH,
+                location.getWorld().getName(), location.getX(), location.getY(), location.getZ(),
+                location.getYaw(), location.getPitch(), 0.0, resolveMaxHealth(player), 0.0,
+                0, 0, 0.0f, empty, empty, false, false, "", null, true, now, now);
+        persistOnlineDeath(session);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onRespawn(PlayerRespawnEvent event) {
+        LogoutBodySession session = sessions.get(event.getPlayer().getUniqueId());
+        if (session == null)
+            return;
+
+        if (session.state() == LogoutBodyState.ONLINE_DEATH) {
+            // El jugador sí pulsó Reaparecer. Los listeners normales del servidor
+            // conservan el control de este respawn y no habrá castigo al reconectar.
+            try {
+                // Una marca resuelta es segura incluso si el DELETE falla justo
+                // antes de un reinicio.
+                saveSession(session.withState(LogoutBodyState.RESTORED));
+                deleteSession(session.playerUuid());
+            } catch (Exception ex) {
+                sessions.remove(session.playerUuid());
+                plugin.getLogger().log(Level.WARNING,
+                        "No se pudo limpiar la marca de respawn de " + session.playerName(), ex);
+            }
+        } else if (session.state() == LogoutBodyState.RESPAWN_PENDING) {
+            World lobby = getDeathLobby();
+            if (lobby != null)
+                event.setRespawnLocation(lobby.getSpawnLocation());
+            // Se mantiene persistida hasta después de nLogin, que todavía puede
+            // restaurar su última posición y sus stats con tareas diferidas.
+        }
+    }
+
+    private boolean isTrackedDeathWorld(String worldName) {
+        return plugin.getConfig().getStringList("settings.enabled-worlds").stream()
+                .anyMatch(worldName::equalsIgnoreCase)
+                || plugin.getConfig().getStringList("logout-body.allowed-worlds").stream()
+                .anyMatch(worldName::equalsIgnoreCase);
+    }
+
+    private LogoutBodySession markRespawnPending(LogoutBodySession session) {
+        LogoutBodySession pending = session.withState(LogoutBodyState.RESPAWN_PENDING);
+        persistOnlineDeath(pending);
+        return pending;
+    }
+
+    private void persistOnlineDeath(LogoutBodySession session) {
+        // Incluso si falla SQLite, el jugador queda protegido durante este proceso.
+        sessions.put(session.playerUuid(), session);
+        try {
+            repository.save(session);
+        } catch (Exception ex) {
+            plugin.getLogger().log(Level.SEVERE,
+                    "No se pudo persistir el respawn pendiente de " + session.playerName(), ex);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -192,7 +305,7 @@ public final class LogoutBodyManager implements Listener {
             return;
 
         LogoutBodySession session = sessions.get(event.getPlayer().getUniqueId());
-        if (session == null || session.state() != LogoutBodyState.GRAVE_CREATED)
+        if (session == null || !needsLobbyCompletion(session))
             return;
 
         Location to = event.getTo();
@@ -384,8 +497,13 @@ public final class LogoutBodyManager implements Listener {
 
     private boolean hasPendingOfflineDeath(UUID playerUuid) {
         LogoutBodySession session = sessions.get(playerUuid);
-        return session != null && (session.state() == LogoutBodyState.GRAVE_CREATED
+        return session != null && (needsLobbyCompletion(session)
                 || session.state() == LogoutBodyState.DEATH_PROCESSING);
+    }
+
+    private boolean needsLobbyCompletion(LogoutBodySession session) {
+        return session.state() == LogoutBodyState.GRAVE_CREATED
+                || session.state() == LogoutBodyState.RESPAWN_PENDING;
     }
 
     private boolean isEnabled() {
@@ -660,12 +778,14 @@ public final class LogoutBodyManager implements Listener {
     }
 
     private void scheduleFinalization(Player player) {
-        if (player == null || !player.isOnline() || !sessions.containsKey(player.getUniqueId()))
+        if (player == null || !player.isOnline() || Bukkit.getPlayer(player.getUniqueId()) != player
+                || !sessions.containsKey(player.getUniqueId()))
             return;
+        requestedRespawns.remove(player.getUniqueId());
         cancelAuthFallback(player.getUniqueId());
         long delay = Math.max(0L,
                 plugin.getConfig().getLong("logout-body.nlogin.after-auth-delay-ticks", 2L));
-        Bukkit.getScheduler().runTaskLater(plugin, () -> finalizePendingSession(player.getUniqueId()), delay);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> finalizeCurrentConnection(player), delay);
     }
 
     private void scheduleAuthenticationFallback(Player player) {
@@ -674,7 +794,7 @@ public final class LogoutBodyManager implements Listener {
 
         if (!nLogin.isNLoginEnabled()) {
             BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin,
-                    () -> finalizePendingSession(uuid), 1L);
+                    () -> finalizeCurrentConnection(player), 1L);
             authFallbackTasks.put(uuid, task);
             return;
         }
@@ -691,6 +811,16 @@ public final class LogoutBodyManager implements Listener {
         authFallbackTasks.put(uuid, task);
     }
 
+    private boolean isCurrentAuthenticatedConnection(Player player) {
+        return player != null && player.isOnline() && Bukkit.getPlayer(player.getUniqueId()) == player
+                && (!nLogin.isNLoginEnabled() || nLogin.isAuthenticated(player));
+    }
+
+    private void finalizeCurrentConnection(Player player) {
+        if (isCurrentAuthenticatedConnection(player))
+            finalizePendingSession(player.getUniqueId());
+    }
+
     private void finalizePendingSession(UUID uuid) {
         cancelAuthFallback(uuid);
         Player player = Bukkit.getPlayer(uuid);
@@ -703,6 +833,7 @@ public final class LogoutBodyManager implements Listener {
         switch (session.state()) {
             case RESTORE_PENDING -> restoreSurvivor(player, session);
             case GRAVE_CREATED -> applyOfflineDeath(player, session);
+            case RESPAWN_PENDING -> applyPendingRespawn(player);
             case BODY_SAFE, RESTORED -> {
                 try {
                     deleteSession(uuid);
@@ -814,6 +945,67 @@ public final class LogoutBodyManager implements Listener {
         }
     }
 
+    private void applyPendingRespawn(Player player) {
+        try {
+            if (player.isDead() || player.getHealth() <= 0.0) {
+                // Usar el respawn real deja a Minecraft terminar el inventario,
+                // experiencia y estado de muerte antes de modificar stats.
+                if (requestNativeRespawn(player))
+                    Bukkit.getScheduler().runTaskLater(plugin,
+                            () -> finalizeCurrentConnection(player), 1L);
+                return;
+            }
+
+            requestedRespawns.remove(player.getUniqueId());
+            resetRespawnVitals(player);
+            World lobby = getDeathLobby();
+            if (lobby == null)
+                return;
+            if (!player.teleport(lobby.getSpawnLocation())) {
+                plugin.getLogger().warning("No se pudo completar en el lobby el respawn de "
+                        + player.getName() + "; se conserva la sesión pendiente.");
+                return;
+            }
+            schedulePostAuthDeathCompletion(player.getUniqueId());
+        } catch (Exception ex) {
+            plugin.getLogger().log(Level.SEVERE,
+                    "No se pudo completar el respawn pendiente de " + player.getName(), ex);
+        }
+    }
+
+    private boolean requestNativeRespawn(Player player) {
+        if (!requestedRespawns.add(player.getUniqueId()))
+            return false;
+        try {
+            player.spigot().respawn();
+            return true;
+        } catch (Exception ex) {
+            requestedRespawns.remove(player.getUniqueId());
+            plugin.getLogger().log(Level.WARNING,
+                    "No se pudo solicitar el respawn de " + player.getName()
+                            + "; la marca pendiente se conserva.", ex);
+            return false;
+        }
+    }
+
+    private void resetRespawnVitals(Player player) {
+        player.setFireTicks(0);
+        player.setFallDistance(0.0f);
+        player.setAbsorptionAmount(0.0);
+        player.setHealth(resolveMaxHealth(player));
+        player.setFoodLevel(20);
+        player.setSaturation(5.0f);
+        player.setExhaustion(0.0f);
+    }
+
+    private World getDeathLobby() {
+        String name = plugin.getConfig().getString("logout-body.death.lobby-world", "world5");
+        World lobby = Bukkit.getWorld(name);
+        if (lobby == null)
+            plugin.getLogger().severe("No existe el mundo lobby configurado para logout-body: " + name);
+        return lobby;
+    }
+
     private void sendOfflineDeathNoticeOnce(Player player, LogoutBodySession session) throws Exception {
         if (session.deathNoticeSent())
             return;
@@ -833,17 +1025,20 @@ public final class LogoutBodyManager implements Listener {
 
     private void schedulePostAuthDeathCompletion(UUID uuid) {
         cancelPostAuthDeath(uuid);
+        Player expected = Bukkit.getPlayer(uuid);
         long holdTicks = Math.max(1L,
                 plugin.getConfig().getLong("logout-body.nlogin.post-auth-lock-ticks", 60L));
-        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin,
-                () -> completeOfflineDeath(uuid), holdTicks);
+        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (isCurrentAuthenticatedConnection(expected))
+                completeOfflineDeath(uuid);
+        }, holdTicks);
         postAuthDeathTasks.put(uuid, task);
     }
 
     private void completeOfflineDeath(UUID uuid) {
         postAuthDeathTasks.remove(uuid);
         LogoutBodySession session = sessions.get(uuid);
-        if (session == null || session.state() != LogoutBodyState.GRAVE_CREATED)
+        if (session == null || !needsLobbyCompletion(session))
             return;
 
         Player player = Bukkit.getPlayer(uuid);
@@ -854,6 +1049,21 @@ public final class LogoutBodyManager implements Listener {
         }
 
         try {
+            if (session.state() == LogoutBodyState.RESPAWN_PENDING) {
+                // A diferencia de una muerte del cuerpo offline, los objetos y la
+                // experiencia ya fueron resueltos por PlayerDeathEvent/respawn.
+                if (player.isDead() || player.getHealth() <= 0.0) {
+                    applyPendingRespawn(player);
+                    return;
+                }
+                resetRespawnVitals(player);
+                World lobby = getDeathLobby();
+                if (lobby == null || !player.teleport(lobby.getSpawnLocation()))
+                    return;
+                deleteSession(uuid);
+                return;
+            }
+
             player.closeInventory();
             session.protectedInventory().restore(player);
             if (plugin.getConfig().getBoolean("logout-body.death.reset-experience", true)) {
@@ -913,6 +1123,12 @@ public final class LogoutBodyManager implements Listener {
                 }
                 case RESTORED -> repository.delete(session.playerUuid());
                 case RESTORE_PENDING, GRAVE_CREATED -> sessions.put(session.playerUuid(), session);
+                case ONLINE_DEATH -> {
+                    LogoutBodySession pending = session.withState(LogoutBodyState.RESPAWN_PENDING);
+                    repository.save(pending);
+                    sessions.put(pending.playerUuid(), pending);
+                }
+                case RESPAWN_PENDING -> sessions.put(session.playerUuid(), session);
             }
         }
     }
@@ -1025,7 +1241,7 @@ public final class LogoutBodyManager implements Listener {
         return entity.getType().name().toLowerCase(Locale.ROOT).replace('_', ' ');
     }
 
-    private double resolveMaxHealth(LivingEntity entity) {
+    double resolveMaxHealth(LivingEntity entity) {
         AttributeInstance attribute = entity.getAttribute(Attribute.MAX_HEALTH);
         return attribute == null ? Math.max(1.0, entity.getHealth()) : Math.max(1.0, attribute.getValue());
     }
